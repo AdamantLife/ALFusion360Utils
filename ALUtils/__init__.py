@@ -54,7 +54,7 @@ def getDocID(app = None, document = None):
     if app is None: app = getApp()
     return app.activeDocument.creationId
 
-def create_handler(event:adsk.core.Event, handlers: list, classes: dict)->adsk.core.EventHandler:
+def create_handler(event:adsk.core.Event, handlers: list, classes: dict)->"adsk.core.EventHandler":
     """ Allows for shorthand creation of multiple Event Handler classes/instances.
     
         This method is similar to futil.create_handler except that it's much more
@@ -146,7 +146,7 @@ class Command():
         ## make the following truthy
         if self.command_created:
             # Define an event handler for the command created event. It will be called when the button is clicked.
-            self._createHandler(cmd_def.commandCreated, handlers = self._command_handlers)
+            self._create_handler(cmd_def.commandCreated, handlers = self._command_handlers)
 
             for placement in self.commandicons:
                 # ******** Add a button into the UI so the user can run the command. ********
@@ -209,15 +209,15 @@ class Command():
         self.command_created(args)
         command = args.command
 
-        self._createHandler(command.destroy)
+        self._create_handler(command.destroy)
         if self.command_execute:
-            self._createHandler(command.execute)
+            self._create_handler(command.execute)
         if self.command_input_changed:
-            self._createHandler(command.inputChanged)
+            self._create_handler(command.inputChanged)
         if self.command_preview:
-            self._createHandler(command.executePreview)
+            self._create_handler(command.executePreview)
         if self.command_validate_input:
-            self._createHandler(command.validateInputs)
+            self._create_handler(command.validateInputs)
     
     def command_destroy(self, args: adsk.core.CommandEventArgs)-> None:
         """ Cleans up after the Command Dialog is destroyed by clearing self.local_handlers.
