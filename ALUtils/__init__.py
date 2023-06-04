@@ -54,6 +54,46 @@ def getDocID(app = None, document = None):
     if app is None: app = getApp()
     return app.activeDocument.creationId
 
+def create_handler(event:adsk.core.Event, handlers: list, classes: dict)->adsk.core.EventHandler:
+    """ Allows for shorthand creation of multiple Event Handler classes/instances.
+    
+        This method is similar to futil.create_handler except that it's much more
+        strict in order to improve transparency: all components necessary to build
+        the Handler Class are required arguments.
+
+        Arguments:
+            event- The Event to add a Handler to
+
+            handlers- The handlers collection which persists the lifetime
+                        of the created Event Handler
+
+            classes- A dictionary where the keys are Event.name strings and
+                    the values are a length two tuple: (callback, handler_class)
+
+            callback - The callback to evoke in EventHandler.notify
+
+            handler_class- The specific EventHandler subclass to use
+    """
+    callback, handler_class = classes.get(event.name, [None, None])
+    if not handler_class:
+        raise TypeError(f"Invalid command {event.name}")
+    if not callback:
+        raise TypeError(f"Callback not defined for {event.name}")
+    
+    class EventHandler(handler_class):
+            def notify(self,args):
+                try:
+                    callback(args)
+                except:
+                    import traceback
+                    log(f"""ERROR: {self.name}
+{traceback.format_exc()}""", level=adsk.core.LogLevels.ErrorLogLevel)
+
+    handler = EventHandler()
+    event.add(handler)
+    handlers.append(handler)
+    return handler
+
 @dataclass
 class CommandPlacement:
     """ Object Describing the icon placement of a Command """
@@ -218,36 +258,19 @@ class Command():
         """
         return False
     
-    def _createHandler(self, command, handlers = None):
-        classes = {
-            ## Note that _command_created is called instead of command_created because
-            ## _command_created ensure the rest of the command stack is initialized
-            "CommandCreated": [self._command_created, adsk.core.CommandCreatedEventHandler],
-            "OnDestroy": [self.command_destroy, adsk.core.CommandEventHandler],
-            "OnExecute": [self.command_execute, adsk.core.CommandEventHandler],
-            "InputValueChanged": [self.command_input_changed,adsk.core.InputChangedEventHandler],
-            "OnExecutePreview": adsk.core.CommandEventHandler,
-            "AreInputsValid": adsk.core.ValidateInputsEventHandler,
-        }
+    def _create_handler(self, event, handlers = None, classes = None):
+        if classes is None:
+            classes = {
+                ## Note that _command_created is called instead of command_created because
+                ## _command_created ensure the rest of the command stack is initialized
+                "CommandCreated": (self._command_created, adsk.core.CommandCreatedEventHandler),
+                "OnDestroy": (self.command_destroy, adsk.core.CommandEventHandler),
+                "OnExecute": (self.command_execute, adsk.core.CommandEventHandler),
+                "InputValueChanged": (self.command_input_changed,adsk.core.InputChangedEventHandler),
+                "OnExecutePreview": (self.command_preview,adsk.core.CommandEventHandler),
+                "AreInputsValid": (self.command_validate_input,adsk.core.ValidateInputsEventHandler),
+            }
 
         if handlers is None: handlers = self.local_handlers
 
-        callback, handler_class = classes.get(command.name, [None, None])
-        if not handler_class:
-            raise TypeError(f"Invalid command {command.name}")
-        if not callback:
-            raise TypeError(f"Callback not defined for {command.name}")
-        
-        class EventHandler(handler_class):
-                def notify(self,args):
-                    try:
-                        callback(args)
-                    except:
-                        import traceback
-                        log(f"""ERROR: {self.name}
-{traceback.format_exc()}""", level=adsk.core.LogLevels.ErrorLogLevel)
-
-        handler = EventHandler()
-        command.add(handler)
-        handlers.append(handler)
-        return handler
+        return create_handler(event, handlers=handlers, classes=classes)
